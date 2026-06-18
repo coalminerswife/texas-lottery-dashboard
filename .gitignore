@@ -1,0 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Local runtime artifacts (the cloud GitHub Action regenerates data)
+logs/
+
+# NOTE: data/lottery.db IS committed on purpose — it carries the accumulated
+# daily history, which is the whole point. The GitHub Action updates it daily.

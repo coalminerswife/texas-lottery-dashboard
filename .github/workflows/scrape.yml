@@ -1,0 +1,46 @@
+name: Daily scrape
+
+# Runs the scraper once a day and commits the updated SQLite history back to the
+# repo. Streamlit Community Cloud redeploys on the new commit, so the hosted app
+# stays current and the daily-history "moat" persists in git (Cloud storage is
+# ephemeral, so it can't live only on the app server).
+
+on:
+  schedule:
+    - cron: "0 14 * * *"   # 14:00 UTC ~ 9am US Central
+  workflow_dispatch: {}     # lets you trigger a run manually from the Actions tab
+
+permissions:
+  contents: write
+
+concurrency:
+  group: daily-scrape
+  cancel-in-progress: false
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # The scraper only needs these two (not streamlit/pandas), so install is fast.
+      - run: pip install requests beautifulsoup4
+
+      - name: Scrape today's snapshot
+        run: python scraper.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/lottery.db
+          if git diff --quiet --cached; then
+            echo "No data changes today."
+          else
+            git commit -m "Daily scrape: update prize data ($(date -u +%Y-%m-%d))"
+            git push
+          fi
