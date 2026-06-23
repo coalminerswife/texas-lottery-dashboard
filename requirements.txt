@@ -1,4 +1,7 @@
-requests
-beautifulsoup4
-pandas
-streamlit
+# Pinned for a reproducible Streamlit Cloud environment.
+# Direct dependencies only; transitive deps (numpy, pyarrow, etc.) resolve from these.
+# To refresh: bump these to the versions in your local .venv, test, and redeploy.
+requests==2.34.2
+beautifulsoup4==4.15.0
+pandas==3.0.3
+streamlit==1.58.0

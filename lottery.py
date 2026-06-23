@@ -305,6 +305,23 @@ def snapshot_dates(conn: sqlite3.Connection) -> list[str]:
     )]
 
 
+def last_scraped_at(conn: sqlite3.Connection, date: str | None = None) -> str | None:
+    """When the latest snapshot was last fetched (max scraped_at for that date).
+
+    Distinct from the snapshot's own date: the source can keep the same 'as of'
+    date for a while, but we still re-check it, so this shows the real freshness.
+    """
+    if date is None:
+        dates = snapshot_dates(conn)
+        if not dates:
+            return None
+        date = dates[0]
+    row = conn.execute(
+        "SELECT MAX(scraped_at) FROM prizes WHERE snapshot_date = ?", (date,)
+    ).fetchone()
+    return row[0] if row else None
+
+
 def grand_prize_overview(conn: sqlite3.Connection, date: str | None = None):
     """Top-tier (grand prize) row per game for the given snapshot (latest by default)."""
     if date is None:

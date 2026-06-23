@@ -29,7 +29,8 @@ def load():
         tier_winners = [dict(r) for r in lottery.recent_winners(conn, top_tier_only=False)]
         meta = lottery.game_meta_map(conn)
         tier_totals = lottery.all_tier_totals(conn)
-        return dates, overview, winners, tier_winners, meta, tier_totals
+        checked_at = lottery.last_scraped_at(conn)
+        return dates, overview, winners, tier_winners, meta, tier_totals, checked_at
     finally:
         conn.close()
 
@@ -41,7 +42,7 @@ def _fmt_odds(n):
     return f"1 in {n:,.0f}"
 
 
-dates, overview, winners, tier_winners, meta, tier_totals = load()
+dates, overview, winners, tier_winners, meta, tier_totals, checked_at = load()
 
 st.title("🎟️ Texas Scratch-Off Tracker")
 
@@ -49,9 +50,15 @@ if not dates:
     st.warning("No data yet. Run `.venv/bin/python scraper.py` to pull the first snapshot.")
     st.stop()
 
+# The source stamps its data with a date only (no time) and can lag by a day, so the
+# "as of" date may not move every day. We re-check 3x/day regardless, so also show the
+# real last-checked time — that's how you can tell the data refreshed even when the
+# source's own date hasn't advanced yet.
+_checked = checked_at.replace("T", " ")[:16] if checked_at else "—"
 st.caption(
-    f"Official prize data as of **{dates[0]}** · {len(dates)} daily snapshot(s) on file · "
-    "source: texaslottery.com (updated once daily)"
+    f"Official prize data as of **{dates[0]}** (source's own date stamp) · "
+    f"{len(dates)} daily snapshot(s) on file · last checked **{_checked}** · "
+    "source: texaslottery.com — publishes one dated snapshot per day; we re-check 3×/day"
 )
 
 df = pd.DataFrame(overview)
