@@ -1,13 +1,23 @@
-name: Daily scrape
+name: Scheduled scrape
 
-# Runs the scraper once a day and commits the updated SQLite history back to the
+# Runs the scraper 3x/day and commits the updated SQLite history back to the
 # repo. Streamlit Community Cloud redeploys on the new commit, so the hosted app
 # stays current and the daily-history "moat" persists in git (Cloud storage is
 # ephemeral, so it can't live only on the app server).
+#
+# Why 3x/day and not hourly: the Texas Lottery source only publishes ONE dated
+# snapshot per day ("...as of <Month DD, YYYY>", no time), and it can lag by a
+# day. Scraping more often than the source updates yields identical data. Three
+# spread-out runs simply catch each new daily snapshot promptly instead of waiting
+# ~24h. Re-running within the same source date is idempotent (INSERT OR REPLACE on
+# the snapshot_date PK), so odds always reflect the single latest snapshot, never a mix.
 
 on:
   schedule:
-    - cron: "0 14 * * *"   # 14:00 UTC ~ 9am US Central
+    # GitHub cron is always UTC (no DST). Central is UTC-5 in summer (CDT):
+    #   12:00 UTC ~ 7am · 18:00 UTC ~ 1pm · 00:00 UTC ~ 7pm Central.
+    # Times drift one hour later in winter (CST); fine for this purpose.
+    - cron: "0 0,12,18 * * *"
   workflow_dispatch: {}     # lets you trigger a run manually from the Actions tab
 
 permissions:
@@ -41,6 +51,6 @@ jobs:
           if git diff --quiet --cached; then
             echo "No data changes today."
           else
-            git commit -m "Daily scrape: update prize data ($(date -u +%Y-%m-%d))"
+            git commit -m "Scrape: update prize data ($(date -u '+%Y-%m-%d %H:%MZ'))"
             git push
           fi

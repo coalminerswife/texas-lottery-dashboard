@@ -203,9 +203,12 @@ if only_available:
 sort_col, ascending = SORTS[sort_by]
 view = view.sort_values(sort_col, ascending=ascending, na_position="last")
 
+# Use the raw numeric columns (live_odds_n / orig_odds_n / edge_n) rather than the
+# pre-formatted strings, so clicking a column header sorts numerically instead of
+# lexicographically ("1 in 1,000" vs "1 in 9"). Formatting is applied via column_config.
 table = view[
     ["game_number", "game_name", "price", "prize_amount", "remaining", "printed",
-     "pct_remaining", "live_odds", "orig_odds", "edge"]
+     "pct_remaining", "live_odds_n", "orig_odds_n", "edge_n"]
 ].rename(
     columns={
         "game_number": "Game #",
@@ -215,12 +218,38 @@ table = view[
         "remaining": "Grand prizes left",
         "printed": "Printed",
         "pct_remaining": "% left",
-        "live_odds": "Live odds (est.)",
-        "orig_odds": "Original odds",
-        "edge": "Value vs print",
+        "live_odds_n": "Live odds (1 in)",
+        "orig_odds_n": "Original odds (1 in)",
+        "edge_n": "Value vs print",
     }
 )
-st.dataframe(table, hide_index=True, width="stretch", height=460)
+# Round odds to whole numbers so the comma-grouped ("localized") format renders e.g.
+# "1,005" rather than "1,005.05"; nullable Int64 keeps missing values blank.
+for col in ["Live odds (1 in)", "Original odds (1 in)"]:
+    table[col] = table[col].round(0).astype("Int64")
+
+st.dataframe(
+    table,
+    hide_index=True,
+    width="stretch",
+    height=460,
+    column_config={
+        # "localized" adds thousands separators (commas). printf formats (e.g. "1 in %d")
+        # can't do grouping, which is why "1 in" lives in the column header instead.
+        "Printed": st.column_config.NumberColumn(format="localized"),
+        "Grand prizes left": st.column_config.NumberColumn(format="localized"),
+        "% left": st.column_config.NumberColumn(format="%.1f%%"),
+        "Live odds (1 in)": st.column_config.NumberColumn(
+            format="localized",
+            help="Estimated current odds of winning the grand prize. Lower = easier to win.",
+        ),
+        "Original odds (1 in)": st.column_config.NumberColumn(
+            format="localized",
+            help="Odds of the grand prize at print. Lower = easier to win.",
+        ),
+        "Value vs print": st.column_config.NumberColumn(format="%.2f×"),
+    },
+)
 
 # ---- per-game detail ------------------------------------------------------- #
 st.divider()
