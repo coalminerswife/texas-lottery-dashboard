@@ -11,6 +11,8 @@ Run:  .venv/bin/streamlit run app.py
 
 from __future__ import annotations
 
+import datetime as dt
+
 import pandas as pd
 import streamlit as st
 
@@ -50,16 +52,37 @@ if not dates:
     st.warning("No data yet. Run `.venv/bin/python scraper.py` to pull the first snapshot.")
     st.stop()
 
-# The source stamps its data with a date only (no time) and can lag by a day, so the
-# "as of" date may not move every day. We re-check 3x/day regardless, so also show the
-# real last-checked time — that's how you can tell the data refreshed even when the
-# source's own date hasn't advanced yet.
+# The source stamps its data with a DATE only (no time) and publishes one calendar
+# day behind, so its "as of" date does not move every day. We re-scrape daily
+# regardless, so we show BOTH: the source's own data date AND when we last checked.
+# That distinction is the whole point — "last checked today" with figures that match
+# yesterday is correct, not stale: it means the source itself hasn't posted a newer
+# day yet. The lag note below makes that explicit so it never reads as a bug.
 _checked = checked_at.replace("T", " ")[:16] if checked_at else "—"
 st.caption(
-    f"Official prize data as of **{dates[0]}** (source's own date stamp) · "
+    f"Official prize data as of **{dates[0]}** (the source's own date stamp) · "
     f"{len(dates)} daily snapshot(s) on file · last checked **{_checked}** · "
-    "source: texaslottery.com — publishes one dated snapshot per day; we re-check 3×/day"
+    "source: texaslottery.com"
 )
+
+# How far the source's own date trails the calendar. A ~1-day lag is normal (the
+# Texas Lottery posts yesterday's tallies); a larger gap means the SOURCE is late,
+# not that our scraper stopped — last-checked above proves we're still pulling.
+_lag = (dt.date.today() - dt.date.fromisoformat(dates[0])).days
+if _lag <= 0:
+    st.success("✅ Fully current — showing the Texas Lottery's latest published figures.")
+elif _lag == 1:
+    st.info(
+        "ℹ️ The Texas Lottery publishes prize counts **one day behind**, so today shows "
+        "yesterday's official figures. The numbers, odds and 'recently claimed' window "
+        "all advance automatically the moment the source posts a newer day."
+    )
+else:
+    st.warning(
+        f"⚠️ The source's own data hasn't advanced in **{_lag} days** (it still reads "
+        f"\"{dates[0]}\"). We're still checking daily — see 'last checked' above — but the "
+        "Texas Lottery hasn't posted newer figures yet, so the tables can't move until it does."
+    )
 
 df = pd.DataFrame(overview)
 df["pct_remaining"] = (df["remaining"] / df["printed"] * 100).round(1)
@@ -103,6 +126,11 @@ st.divider()
 
 # ---- recent winners -------------------------------------------------------- #
 st.subheader("🏆 Recently claimed grand prizes")
+st.caption(
+    "Compares the two most recent **source dates** on file (not calendar days). This "
+    "window only moves forward when the Texas Lottery posts a new dated snapshot, so it "
+    "can show the same range for a day or two while the source catches up."
+)
 if len(dates) < 2:
     st.info(
         "Recent-winner tracking compares two days of snapshots. Only one snapshot exists "
